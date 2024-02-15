@@ -1,0 +1,262 @@
+---
+title: 'Project UTS: GAM'
+author: "Anak Agung Ayu Diva Shanty Darmawan"
+date: "2/24/2022"
+output:
+  html_document:
+    code_folding: show
+    number_sections: yes
+    toc: yes
+    toc_float: yes
+---
+
+Untuk project UTS kali ini, akan dilakukan simulasi Generalized Additive Model(GAM) menggunakan salesData2 yang telah diberikan pada awal semester genap.
+
+# Data Cleanup
+Data cleanup disini berisi perintah yang akan menyatakan ulang data yang digunakan dan memeriksa serta menghapus nilai yang kosong atau missing values.
+```{r}
+rm(list = ls())
+library(readr)
+library(ggplot2)
+data = read.csv('salesData2.csv')
+set.seed(1)
+summary(data)
+table(is.na(data))
+```
+Di sini, kita gunakan data sebagai nama variabel untuk memanggil data kita. Untuk memeriksa serta menghapus missing values digunakan perintah is.na, tetapi karena disini kita tidak ada missing values maka tidak digunakan.
+
+
+# Data Exploration
+Melalui Data Exploration, kita dapat mengetahui variabel-variabel mana saja yang akan digunakan untuk mensimulasikan GAM. 
+
+## Dependent Variable
+Dependent Variable adalah variable yang akan menjadi variable yang kita lihat untuk mengukur apakah berhasil modelnya atau tidak. Anggaplah dependent variable seperti efeknya dari model yang ingin kita simulasikan. 
+
+Variable yang kita gunakan sebagai dependent variable adalah variable Price.
+```{r}
+summary(data$Price)
+hist(data$Price) #datanya skewed ke kiri
+boxplot(data$Price)
+
+ggplot(data) + geom_boxplot(aes(y = Price))
+
+boxplot.stats(data$Price, coef = 3)$out
+out = boxplot.stats(data$Price, coef = 3)$out
+out_key = which(data$Price %in% c(out))
+data = data[-out_key, ]
+
+ggplot(data) + geom_boxplot(aes(y = Price))
+```
+
+
+## Independent Variable
+Apabila dependent variable adalah efek, maka independent variable adalah penyebab dari efek tersebut. Independent variable digunakan sebagai variable yang akan mempengaruhi bagaimana hasil model yang akan dihasilkan.
+
+Independent variable yang digunakan pada kali ini adalah: City, Province, SQFT, RMTOT, RMBED, BATH, FLR1AREA, BSMT, ATTIC, SFLA, GRADE, EFF_AGE, Style.
+```{r}
+table(data$GRADE)
+table(data$City)
+table(data$Province)
+table(data$BSMT)
+table(data$ATTIC)
+table(data$Style)
+summary(data$SQFT)
+summary(data$RMTOT)
+summary(data$RMBED)
+summary(data$BATH)
+summary(data$FLR1AREA)
+summary(data$SFLA)
+summary(data$EFF_AGE)
+
+data = data[data$SQFT != 0,]
+
+cor(data$Price, data$SQFT) #negative no highly connected
+cor(data$Price, data$FLR1AREA) #0.44, lumayan connected (strong)
+cor(data$Price, data$SFLA) #0.713, highly connected (strong)
+cor(data$Price, data$RMTOT) #0.265, lumayan connected (moderate)
+cor(data$Price, data$RMBED) #0.28, lymayan connected (moderate)
+cor(data$Price, data$EFF_AGE) #negative no highly connected
+cor(data$Price, data$City) #negative, no highly connected
+cor(data$Price, data$Province) #NEGATIVE
+cor(data$Price, data$BATH)# 0.597, highly connected
+cor(data$Price, data$BSMT)# 0.22
+cor(data$Price, data$ATTIC) #negative
+
+library(ggpubr)
+ggarrange(ggplot(data) + geom_boxplot(aes(GRADE, Price)),
+          ggplot(data) + geom_point(aes(SQFT, Price)), 
+          ggplot(data) + geom_point(aes(FLR1AREA, Price)), 
+          ggplot(data) + geom_point(aes(SFLA, Price)))
+ggarrange(
+          ggplot(data) + geom_point(aes(RMTOT, Price)),
+          ggplot(data) + geom_point(aes(RMBED, Price)),
+          ggplot(data) + geom_point(aes(EFF_AGE, Price)),
+          ggplot(data) + geom_boxplot(aes(City, Price)))
+ggarrange(
+          ggplot(data) + geom_boxplot(aes(Province, Price)),
+          ggplot(data) + geom_boxplot(aes(BSMT, Price)),
+          ggplot(data) + geom_boxplot(aes(Style, Price)),
+          ggplot(data) + geom_boxplot(aes(ATTIC, Price)))
+ggplot(data) + geom_boxplot(aes(BATH, Price))
+```
+
+
+# Splitting Data
+Pada section ini, kita akan membagi data ke dalam train set dan test set. Pembagian data ini dilakukan dengan menggunakan fungsi CreateDataPartition. Pembagian data ini akan dilakukan berdasarkan variable GRADE sebagai salah satu independent data yang categorical di model GAM. Data akan dibagi mengikuti 80:20 ratio, dengan 80% train set dan 20% test set.
+```{r}
+library(lattice)
+library(caret)
+datap = createDataPartition(data$GRADE, p = 0.8, list = FALSE)
+
+train.sd = data[datap,]
+test.sd = data[-datap,]
+
+rbind("Train Set" = table(train.sd$GRADE),
+      "Test Set"= table(test.sd$GRADE))
+```
+Dengan melakukan pengecekan pada fungsi rbind, dapat kita lihat bahwa di dalam train set dan test set terdapat variable GRADE dengan proporsi yang telah ditetapkan.
+
+```{r}
+rbind("Train Set" = table(train.sd$BSMT),
+      "Test Set"= table(test.sd$BSMT))
+```
+Selain itu juga terdapat proporsi yang pas diantara train set dan test set untuk variable BSMT sehingga kita dapat melanjutkan pembuatan model GAM dengan data yang telah dibagi ini.
+
+# Creating GAM Model
+Generalized Additivie Model(GAM) adalah model linier umum dimana variable response linier bergantung secara linier pada fungsi mulus yang tidak diketahui dari beberapa variable prediktor. 
+
+
+```{r}
+library(foreach)
+library(splines)
+library(gam)
+mod1 = gam(log(Price) ~ GRADE + s(SQFT) + s(FLR1AREA) + s(SFLA) + s(EFF_AGE) + City + Province + s(RMTOT) + s(RMBED) + s(BATH) + BSMT + ATTIC + Style, data = train.sd)
+summary(mod1)
+
+preplot.gam1 = preplot(mod1)
+pdf(file = "~/nty/interactive mod1.pdf")
+for (i in 1:length(preplot.gam1)){
+  plot(preplot.gam1[[i]])
+}
+dev.off()
+# ini tuh jelasin aja kayak modelnya menghasilkan aic nya seberapa dan jelasin aja apa artinya. abis itu kasih penjelasan kalo kita coba keluarin satu-satu sehingga menemukan model yang lebih akurat dengan aic yang lebih kecil.
+```
+Dengan fungsi GAM ini, dapat kita temukan model kita untuk variabel-variabel digunakan pada projek ini. Selain itu, ditambahkan juga set.seed(1) agar dapat menghasilkan hasil yang sama setiap kali di-run agar dapat kita bandingkan.
+
+Tetapi apabila dilihat, model ini memiliki nilai AIC yang cukup besar sehingga model ini belum dapat dinilai akurat. Artinya juga bahwa ada salah satu atau beberapa dari independent variable yang kurang cocok dan tidak memberikan pengaruh pada modelnya. Sehingga harus dicoba lagi untuk mencari model yang lebih akurat.
+
+```{r}
+mod2 = gam(log(Price) ~ GRADE + s(SQFT) + s(FLR1AREA) + s(SFLA) + s(EFF_AGE) + City + Province + s(RMBED) + s(BATH) + BSMT + ATTIC + Style, data = train.sd)
+summary(mod2)
+
+preplot.gam2 = preplot(mod2)
+pdf(file = "~/nty/interactive mod2.pdf")
+for (i in 1:length(preplot.gam2)){
+  plot(preplot.gam2[[i]])
+}
+dev.off()
+```
+
+
+```{r}
+plot(mod2$fitted.values, mod2$residuals)
+plot(mod2$fitted.values, mod2$y)
+mod2$aic
+
+ggplot() + 
+  geom_point(aes(x = mod2$fitted.values, y = log(train.sd$Price))) +
+  geom_abline(aes(intercept = 0, slope = 1), colour = "red") + 
+  ggtitle("Log Price vs. Prediction - Training Data With Outliers") + 
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  labs(x = "Train Data Prediction", y = "Log Sales Price")
+```
+```{r}
+residu = data.frame(x = rstandard(mod2))
+pred = mod2$fitted.values
+
+ggplot() + 
+  geom_point(aes(x = mod2$fitted.values, y = residu$x)) +
+  geom_abline(aes(intercept = 0, slope = 0), colour = "red") +
+  ggtitle("Residual vs. Prediction - Training Data with Outliers") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(x = "Prediction on Train Data", y = "Residual")
+```
+```{r}
+bin = which(abs(residu) > 3)
+
+if(length(bin)>0){
+  train.outliers = train.sd
+  train.outliers$outliers = 0
+  train.outliers$outliers[bin] = 1
+  train.outliers$pred = mod2$fitted.values
+  train.outliers$pred.dollar = exp(train.outliers$pred)
+  train.sd.2 = train.sd[-bin,]
+} else{
+  train.sd.2 = train.sd
+}
+
+mod2.final = gam(log(Price) ~ GRADE + s(SQFT) + s(FLR1AREA) + s(SFLA) + s(EFF_AGE) + City + Province + s(RMBED) + s(BATH) + BSMT + ATTIC + Style, data = train.sd.2)
+summary(mod2.final)
+
+preplot.gam2.final = preplot(mod2.final)
+pdf(file = "~/nty/interactive mod2.final.pdf")
+for (i in 1:length(preplot.gam2.final)){
+  plot(preplot.gam2.final[[i]])
+}
+dev.off()
+```
+```{r}
+residu.final = data.frame(x = rstandard(mod2.final))
+pred = mod2.final$fitted.values
+
+ggplot() + 
+  geom_point(aes(x = mod2.final$fitted.values, y = log(train.sd.2$Price))) +
+  geom_abline(aes(intercept = 0, slope = 1), colour = "red") +
+  ggtitle("Sales Price vs. Prediction - Train Data without Outliers") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(x = "Prediction on Train Data", y = "Residuals")
+```
+```{r}
+ggplot() +
+  geom_point(aes(x = mod2.final$fitted.values, y = residu.final$x)) + 
+  geom_abline(aes(intercept = 0, slope = 0), colour = "red") +
+  ggtitle("Residual vs. Prediction - Training Data without Outliers") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(x = "Prediction on Train Data", y = "Residuals")
+```
+
+
+### Cheking for Multicollinearity and Error
+```{r}
+library(car)
+vif(mod2.final)
+```
+Dapat dilihat bahwa nilai VIF dari variabel-variabel yang ada di dalam model ini memiliki nilai yang lebih kecil dari 5 maka artinya variabel ini memiliki korelasi yang lumayan sedang dan model yang dihasilkan cukup akurat.
+
+
+Selanjutnya akan kita run error.analysis pada data train.sd.2
+```{r}
+comp = function(pred, obs){
+  n = length(obs)
+  rsq = cor(pred, obs)^2
+  mse = sum((pred - obs)^2)/ n
+  semse = sd((pred - obs)^2) / sqrt(n)
+  rmse = sqrt(mse)
+  se = sd(pred - obs) / sqrt(n)
+  mae = sum(abs(pred - obs)) / n
+  mape = sum(abs(pred-obs)/obs)/n*100
+
+return(list("n" = n, "R2" = rsq, "MSE" = mse, "SEMSE" = semse, "RMSE" = rmse, "SE" = se, "MAE" = mae, "MAPE" = mape))
+}
+
+comp(mod2.final$fitted.values, mod2.final$y)
+```
+
+
+Selanjutnya akan dilakukan error anaylisis pada data test.sd
+```{r, results='hide'}
+test.sd$prediction = predict(mod2.final , newdata = test.sd)
+```
+```{r}
+summary(test.sd$prediction)
+```
