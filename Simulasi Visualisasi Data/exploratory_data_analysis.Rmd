@@ -1,0 +1,183 @@
+---
+title: "Exploratory Data Analysis"
+author: "ivanky"
+date: "1/14/2022"
+output:
+  html_document: 
+    code_folding: show
+    number_sections: yes
+    toc: yes
+    toc_float: yes  
+  pdf_document: 
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Pendahuluan
+
+Akan diinstall terlebih dahulu package-package yang diperlukan. Package-package tersebut adalah:
+
+1. tidyverse
+2. data.table
+3. mltools
+4. dplyr
+5. skimr
+
+Perintah dibawah ini hanya cukup dirun sekali saja, karena sudah akan terinstall di sistem. Selanjutnya hanya tinggal dipanggil melalui perintah 
+
+```
+install.packages("tidyverse")
+install.packages("data.table")
+install.packages("mltools")
+install.packages("dplyr")
+install.packages("skimr")
+```
+
+Perintah dibawah ini untuk mengunggah package yang diperlukan
+
+```
+library(tidyverse)
+library(data.table)
+library(mltools)
+library(dplyr)
+library(skimr)
+library(ggplot2)
+```
+
+```{r include=FALSE}
+library(tidyverse)
+library(data.table)
+library(mltools)
+library(dplyr)
+library(skimr)
+library(ggplot2)
+```
+
+# Exploratory Data Analysis
+
+## Memanggil data
+
+Data dapat dipanggil di R dengan berbagai cara (setidaknya ada 2 cara) yakni data tersebut sudah di dalam R, contoh
+
+```{r}
+data("AirPassengers")
+summary(AirPassengers)
+```
+
+atau contoh lainnya
+
+```{r}
+data("iris")
+summary(iris)
+```
+
+Dalam contoh diatas, data ```iris``` dan data ```airpassenger``` merupakan data bawaan yang sudah ada di R. Kita tidak perlu melakukan upload. Berikut ini adalah contoh jika kita ingin melakukan pemanggilan data dari data yang ada di dalam komputer kita.
+
+```{r}
+mydata <- read.csv("College.csv",header=TRUE, sep=",")
+summary(mydata)
+```
+
+Dari summary data ```College.csv``` terlihat bahwa variabel ```Private``` seharusnya merupakan variabel kategorikal, namun R belum mengenai variable tersebut sebagai variabel karakter. Berikut adalah kode yang dibutuhkan untuk mengubah variabel karakter menjadi variabel kategorikal.
+
+
+```{r}
+mydata$Private = factor(mydata$Private)
+mydata2 = mydata[,-1]
+summary(mydata2)
+```
+
+```{r}
+temp = c(1:144)
+Airp = data.frame(x=temp,y=AirPassengers)
+```
+
+## Visualisasi 1 variable
+
+Visualisasi variable kontinu : histogram, lineplot. Berikut ini adalah histogram variable ```Sepal.Length``` pada data ```iris```. 
+
+```{r}
+ggplot(data=iris) + geom_histogram(mapping = aes(x=Sepal.Length), color = "red", fill = "red")
+```
+
+Berikut ini adalah histogram variable ```Sepal.Width``` pada data ```iris```.
+
+```{r}
+ggplot(data=iris) + geom_histogram(mapping = aes(x=Sepal.Width), color = "red", fill = "red")
+```
+
+Berikut ini adalah histogram variable ```Petal.Length``` pada data ```iris```.
+
+```{r}
+ggplot(data=iris) + geom_histogram(mapping = aes(x=Petal.Length), color = "red", fill = "red")
+```
+
+Berikut ini adalah histogram variable ```Petal.Width``` pada data ```iris```.
+
+```{r}
+ggplot(data=iris) + geom_histogram(mapping = aes(x=Petal.Width), color = "red", fill = "red")
+```
+
+Selanjutnya kita akan melakukan visualisasi line plot. Kita akan menggunakan dataset ```AirPassengers```. Namun saat ini format dataset
+tersebut bukanlah sebuah dataframe melainkan berbentuk format time series. Untuk itu, kita akan membuat sebuah dataframe baru yang berisikan dataset yang sama. 
+
+```{r}
+temp = c(1:144)
+Airp = data.frame(x=temp,y=AirPassengers)
+```
+
+Berikut ini adalah line plot untuk pada data ```AirPassengers```. Dataset yang kita akan pakai adalah dataset ```Airp``` yang baru saja kita buat dalam kode diatas, yang formatnya adalah dataframe. 
+
+```{r}
+ggplot(data=Airp) + geom_line(mapping = aes(x=x,y=AirPassengers), color = "red", fill = "red")
+```
+
+Berikut ini adalah barchart untuk variable ```Species``` pada data ```iris```.
+
+```{r}
+ggplot(data=iris) + geom_bar(mapping=aes(x=Species), color="blue", fill="blue")
+```
+
+## Visualisasi 2 variable
+
+Selanjutnya kita akan melakukan visualisasi dua variabel. Berikut ini adalah visualisasi antara variabel kategorikal (Species) dan variabel quantitatif (Sepal.Width) dengan menggunakan point plot. 
+
+```{r}
+ggplot(data=iris) + geom_point(mapping = aes(x=Species, y=Sepal.Width, color=Species))
+```
+
+Berikut ini adalah visualisasi antara variabel kategorikal (Species) dan variabel quantitatif (Sepal.Length) dengan menggunakan point plot. 
+```{r}
+ggplot(data=iris) + geom_point(mapping = aes(x=Species, y=Sepal.Length, color=Species))
+```
+
+Selain menggunakan point plot, kita juga bisa menggunakan boxplot untuk melakukan visualisasi antara variabel kategorikal dan variabel quantitatif. Berikut ini adalah visualisasi boxplot antara variabel kategorikal (Species) dan variabel quantitatif (Sepal.Width).
+
+```{r}
+ggplot(data=iris) + geom_boxplot(mapping = aes(x=Species, y=Sepal.Width, color=Species))
+```
+
+Berikut ini adalah visualisasi boxplot antara variabel kategorikal (Species) dan variabel quantitatif (Sepal.Length).
+
+```{r}
+ggplot(data=iris) + geom_boxplot(mapping = aes(x=Species, y=Sepal.Length, color=Species))
+```
+
+## Visualisasi 3 variable 
+
+Di tahap terakhir ini, kita juga bisa melakukan visualisasi tiga variabel dimana kita akan melakukan scatter plot untuk dua variabel quantitatif dan variabel ketiganya adalah variabel kategorikal yang akan berperan sebagai warna dari setiap point. 
+
+Berikut ini adalah scatter plot antara variabel Sepal.Length dan Sepal.Width dengan warna dari setiap point berasal dari variabel Species.
+
+```{r}
+ggplot(data=iris) + geom_point(mapping = aes(x=Sepal.Length, y=Sepal.Width, color=Species))
+```
+
+Berikut ini adalah scatter plot antara variabel Petal.Length dan Petal.Width dengan warna dari setiap point berasal dari variabel Species.
+
+```{r}
+ggplot(data=iris) + geom_point(mapping = aes(x=Petal.Length, y=Petal.Width, color=Species))
+```
