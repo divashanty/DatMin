@@ -1,0 +1,203 @@
+---
+title: "Capital Asset Pricing Model"
+date: "January 21, 2021"
+output:
+  pdf_document:
+    toc: yes
+  html_document:
+    code_folding: show
+    number_sections: yes
+    toc: yes
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+In this study case, we are going to use the Capital Asset Pricing Model (CAPM) to model a price of individual stock. In this study case, we shall illustrate how to implement CAPM using a simple linear regression model. 
+
+# Data Description
+We shall use Manulife Financial's stock data, S&P 500 index data, and the 3-month treasury rate. You should have all data in your working directory. You should have :
+
+* Manulife Financial's stock data : `MFC.csv`
+* S&P 500 index ; `sp500.csv`
+* Treasury rate : `irx.csv`
+
+## Loading data
+
+Since the data are all saved into CSV files, we can use the function `read.csv` to load the data into R.   
+
+```{r, echo=TRUE}
+rm(list=ls())   # clean up workshpace
+mfc <- read.csv('MFC.csv',stringsAsFactors = FALSE)
+sp500 <- read.csv('sp500.csv',stringsAsFactors = FALSE)
+irx <- read.csv('irx.csv',stringsAsFactors = FALSE)
+head(mfc)
+head(sp500)
+head(irx)
+dim(mfc)
+dim(sp500)
+dim(irx)
+```
+
+We can see that all data are monthly data. The Manulife data is from September 1999 to August 2015, the S&P500 data is from January 1950 until August 2015, while the IRX data is from January 1990 to August 2015. 
+
+```{r, echo=TRUE}
+head(mfc$Date)
+tail(mfc$Date)
+head(sp500$Date)
+tail(sp500$Date)
+head(irx$Date)
+tail(irx$Date)
+```
+
+## Data Cleaning
+Suppose we want to build a CAPM model using ten years of monthly data (January 2005 to December 2014), therefore we need to extract data that we need from these three files.  
+We need monthly returns from manulife adjusted closing price and also monthly returns from S&P 500 adjusting closing price. For the risk free rate we shall use the adjusting close price of the IRX divided by (12 x 100) as the data is annualized percentages.  
+
+```{r, echo=TRUE}
+ind <- seq(from=127, to=8, by=-1)
+mfcReturn <- mfc$Adj.Close[ind] / mfc$Adj.Close[ind+1] - 1
+sp500Return <- sp500$Adj.Close[ind] / sp500$Adj.Close[ind+1] - 1
+rfRate <- irx$Adj.Close[ind+1]/1200
+y <- mfcReturn-rfRate
+x <- sp500Return-rfRate
+dat10year <- data.frame(indv=y, market=x)
+head(dat10year)
+```
+
+# Data Visualization
+We now have our explanatory variabels and our response variable. We are ready to use simple linear regression. 
+We need to examine the data before fitting a regression model. We shall use the scatter plot function to see the relationship between these two variables. 
+
+```{r, echo=TRUE}
+plot(dat10year$market,dat10year$indv,col = "red")
+cor(dat10year$market,dat10year$indv)
+cor.test(dat10year$market,dat10year$indv)
+```
+
+# Fitting simple linear regression model
+To fit a regression line in R, we use the function `lm` as follows:
+
+```{r, echo=TRUE}
+mod1 <- lm(indv~market, data=dat10year)
+plot(dat10year$market,dat10year$indv,col = "red")
+abline(mod1)
+```
+
+We also plot the scatter plot along with the regression line.
+
+# Model Evaluation
+Once we fit a linear regression model, we need to justify the quality of our model. To measure the fit of our model, we can use the coefficient of determination (R-squared).
+This value can be found in the summary of our model and the value is 0.5266. This implies that our model can explain more than half of the total variability of the dependent variable. The statistical significant of the slope can also be found in the summary. 
+
+```{r, echo=TRUE}
+summary(mod1)
+```
+
+We can also use ANOVA test to calculate the F-value. 
+
+```{r, echo=TRUE}
+anova(mod1)
+```
+
+# Residual analysis for the first model
+
+## Residual plot
+First, we shall plot the residual of the model with respect to the explanatory variable (the x data). 
+```{r, echo=TRUE}
+plot(dat10year$market,mod1$residuals, col = "red")
+abline(a=0,b=0)
+```
+
+## Histogram of residuals
+Next, we shall plot the histogram of the residuals to see whether they resemble normal distribution
+```{r, echo=TRUE}
+hist(mod1$residuals, breaks = 20)
+```
+
+## Normality of residuals
+```{r, echo=TRUE}
+qqnorm(mod1$residuals, pch = 1, frame = FALSE)
+qqline(mod1$residuals, col = "red", lwd = 2)
+```
+
+## High leverage points.
+Next, we shall locate unusual points. First we shall look points with high leverage. 
+```{r, echo=TRUE}
+xbar <- mean(dat10year$market)
+sx <- sd(dat10year$market)
+n <- dim(dat10year)[1]
+h <- 1/n + (dat10year$market - xbar)^2/((n-1)*sx^2)
+indhigh <- h > 6/n
+HighLeveragePoints <- dat10year[indhigh,]
+HighLeveragePoints
+h[indhigh]
+plot(dat10year$market,dat10year$indv,col = "red")
+abline(mod1)
+for (i in 1:dim(HighLeveragePoints)[1]){
+  p <- HighLeveragePoints[i,]
+  text(p$market, p$indv, labels=rownames(p), pos=3)
+}
+```
+
+## Outliers
+We shall look for outliers as well. 
+```{r, echo=TRUE}
+e <- mod1$residuals
+s <- sqrt(sum(e^2)/(n-2))
+sr <- e / (s*sqrt(1-h))
+indsr <- abs(sr) > 2
+outliers <- dat10year[indsr,]
+sr[indsr]
+plot(dat10year$market,dat10year$indv,col = "red")
+abline(mod1)
+for (i in 1:dim(outliers)[1]){
+  p <- outliers[i,]
+  text(p$market, p$indv, labels=rownames(p), pos=4)
+}
+```
+
+# New regression model 
+
+## Fitting new model
+From the above analysis, we shall look for an alternative model. First we shall remove unusual points and we shall fit the new set of data with another linear regression model.  
+
+```{r, echo=TRUE}
+dat10year_new <- dat10year[-c(45,51,54),]
+mod2 <- lm(indv~market, data=dat10year_new)
+plot(dat10year_new$market,dat10year_new$indv,col = "blue")
+abline(mod2)
+```
+
+## Summary
+We look for the characteristics of the new model.
+
+```{r, echo=TRUE}
+summary(mod2)
+```
+
+## Residual Analysis
+
+```{r, echo=TRUE}
+plot(dat10year_new$market,mod2$residuals, col = "blue")
+abline(a=0,b=0)
+hist(mod2$residuals, breaks = 20)
+qqnorm(mod2$residuals, pch = 1, frame = FALSE)
+qqline(mod2$residuals, col = "steelblue", lwd = 2)
+```
+
+## Predicting new data
+
+Mendefinisikan data baru
+
+```{r}
+newdata = data.frame(indv=1.339912e-02, market = -0.0347919161)
+```
+
+prediksi dengan mod 1
+
+```{r}
+indv_hat = predict(mod1,newdata,interval="confidence")
+```

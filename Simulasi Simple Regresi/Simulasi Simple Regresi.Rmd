@@ -1,0 +1,140 @@
+---
+title: "Tugas Simple Regression"
+author: "Anak Agung Ayu Diva Shanty Darmawan"
+date: "1/31/2022"
+output: html_document
+---
+
+Berikut adalah data-data yang akan digunakan.
+```{r}
+library(ggplot2)
+mfc = read.csv('MFC.csv', stringsAsFactors = FALSE)
+sp500 = read.csv('sp500.csv', stringsAsFactors = FALSE)
+irx = read.csv('irx.csv', stringsAsFactors = FALSE)
+```
+
+# Jawaban nomor 1
+Buatlah data frame baru yang berisi dua variabel, excess return individual dari saham Manulife dan excess return market S&P500 mulai dari Januari 2005 sampai Desember 2014.
+
+Untuk mendapatkan excess return dapat menggunakan model CPAM.
+```{r}
+index = seq(from = 127, to= 8, by = -1)
+mfcreturn = (mfc$Adj.Close[index]/mfc$Adj.Close[index + 1])- 1 
+spreturn = (sp500$Adj.Close[index]/sp500$Adj.Close[index + 1]) - 1
+rf_rate = irx$Adj.Close[index + 1]/1200
+ROR_mfc = mfcreturn - rf_rate
+ROR_sp = spreturn - rf_rate
+data_10 = data.frame(individu = ROR_mfc, market = ROR_sp)
+head(data_10)
+```
+Buatlah scatterplot dari data tersebut.
+```{r}
+plot(data_10$market, data_10$individu, col = "blue")
+```
+
+
+# Jawaban nomor 2
+Buatlah data training dan data testing dari data pada nomor 1.
+```{r}
+n.training = seq(from = 128, to = 21, by = -1)
+n.testing = seq(from = 20, to = 9, by = -1)
+
+training.key = sample(nrow(mfc), size = n.training, replace = FALSE, prob = NULL)
+testing.key = sample(nrow(mfc), size = n.testing, replace = FALSE, prob = NULL)
+
+training_data = mfc[training.key,]
+testing_data = mfc[-testing.key,]
+```
+
+Buatlah model regresi.
+```{r}
+regresi1 = lm(data_10$individu ~ data_10$market, data = data_10)
+plot(data_10$market, data_10$individu, col = "blue")
+```
+Lakukan prediksi.
+```{r}
+summary(regresi1)
+prediksi = predict(regresi1, newdata = testing_data)
+data_10$Predicted = prediksi
+View(data_10)
+```
+
+
+# Jawaban nomor 3
+Buatlah data frame baru dengan tiga variabe;: excess return Manulife, excess return S&P500, dan variabel kategorikal data yang diambil sebelum 1 September 2008 (BEFORE) dan sesudah (AFTER).
+```{r}
+index2 = seq(from = 187, to= 2, by = -1)
+mfcreturn_2 = (mfc$Adj.Close[index2]/mfc$Adj.Close[index2 + 1])- 1 
+spreturn_2 = (sp500$Adj.Close[index2]/sp500$Adj.Close[index2 + 1]) - 1
+rf_rate2 = irx$Adj.Close[index2 + 1]/1200
+ROR_mfc_2 = mfcreturn_2 - rf_rate2
+ROR_sp_2 = spreturn_2 - rf_rate2
+tgl = mfc$Date[index2 + 1]
+data2_10 = data.frame(tgl, ROR_mfc_2, ROR_sp_2) 
+
+tgl_2 = ("2008-09-01")
+tgl_baru = as.Date(tgl_2)
+data2_10$tgl = as.Date(data2_10$tgl)
+
+for(i in 1:nrow(data2_10)){
+  if(data2_10$tgl[i] < tgl_baru){
+    data2_10$status[i] = "Before"
+  }
+  else{
+    data2_10$status[i] = "After"
+  }
+}
+
+View(data2_10)
+```
+
+Scatterplot dari data tersebut.
+```{r}
+ggplot(data = data2_10) + geom_point(mapping = aes(x = spreturn_2, y = mfcreturn_2, color = tgl))
+```
+
+
+# Jawaban nomor 4
+Buatlah dua model CPAM dengan model yang menggunakan data sebelum 1 September 2008 dan menggunakan data sesudah 1 September 2008.
+
+## Sebelum 1 September 2008.
+```{r}
+index3 = seq(from = 104, to= 1, by = -1)
+mfcreturn_3 = (mfc$Adj.Close[index3]/mfc$Adj.Close[index3 + 1])- 1 
+spreturn_3 = (sp500$Adj.Close[index3]/sp500$Adj.Close[index3 + 1]) - 1
+rf_rate3 = irx$Adj.Close[index3 + 1]/1200
+ROR_mfc_3 = mfcreturn_3 - rf_rate3
+ROR_sp_3 = spreturn_3 - rf_rate3
+data3_10 = data.frame(individu = ROR_mfc_3, market = ROR_sp_3)
+head(data3_10)
+
+regresi2 = lm(data3_10$individu~data3_10$market, data = data3_10)
+plot(data3_10$market, data3_10$individu, col = "blue")
+abline(regresi2)
+```
+
+## Sesudah 1 September 2008
+```{r}
+index4 = seq(from = 186, to= 105, by = -1)
+mfcreturn_4 = (mfc$Adj.Close[index4]/mfc$Adj.Close[index4 + 1])- 1 
+spreturn_4 = (sp500$Adj.Close[index4]/sp500$Adj.Close[index4 + 1]) - 1
+rf_rate4 = irx$Adj.Close[index4 + 1]/1200
+ROR_mfc_4 = mfcreturn_4 - rf_rate4
+ROR_sp_4 = spreturn_4 - rf_rate4
+data4_10 = data.frame(individu = ROR_mfc_4, market = ROR_sp_4)
+head(data4_10)
+
+regresi3 = lm(data4_10$individu~data4_10$market, data = data4_10)
+plot(data4_10$market, data4_10$individu, col = "blue")
+abline(regresi3)
+```
+
+
+# Jawaban nomor 5
+Dari ketiga model, buatlah kesimpulan model manakah yang terbaik.
+```{r}
+summary(regresi1)
+summary(regresi2)
+summary(regresi3)
+```
+Menurut saya model yang paling bagus adalah model regresi2 karena model tersebut cukup baik dan dapat dikatakan normal dengan median yang hampir 0 serta mean dan max yang sesuai. Selain itu R squared nya juga lebih tinggi dibandingkan 2 model lainnya yaitu 0.534.
